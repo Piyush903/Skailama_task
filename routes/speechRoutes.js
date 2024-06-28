@@ -7,7 +7,7 @@ const upload = multer();
 
 router.post('/', upload.single('file'), createSpeech);
 router.get('/', getSpeeches);
-router.put('/:id',upload.array() ,updateSpeech);
+router.put('/:id',upload.array(),updateSpeech);
 router.delete('/:id', deleteSpeech);
 router.get('/:id', getSpeechById);
 module.exports = router;

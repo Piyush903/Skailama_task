@@ -204,6 +204,8 @@ const { Readable } = require('stream');
 const ytdl = require('ytdl-core');
 const speech = require('@google-cloud/speech');
 const client = new speech.SpeechClient();
+const { Storage } = require('@google-cloud/storage');
+const storage = new Storage();
 
 const bufferToStream = (buffer) => {
     return Readable.from(buffer);
