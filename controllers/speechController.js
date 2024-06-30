@@ -509,18 +509,15 @@ exports.uploadFile = async (req, res) => {
 };
 
 exports.getSpeeches = async (req, res) => {
-    const { name } = req.query;
+    const { projectId } = req.query; // Assuming projectId is passed in the query parameters
 
     try {
-        // Find the project by name
-        const project = await Project.findOne({ name });
+        // Find the speeches associated with the project by projectId
+        const speeches = await Speech.find({ projectId });
 
-        if (!project) {
-            return res.status(404).json({ message: 'Project not found' });
+        if (!speeches || speeches.length === 0) {
+            return res.status(404).json({ message: 'No speeches found for the project' });
         }
-
-        // Fetch speeches associated with the project
-        const speeches = await Speech.find({ projectId: project._id });
 
         res.status(200).json(speeches);
     } catch (error) {
