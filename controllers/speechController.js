@@ -380,13 +380,11 @@ exports.createSpeech = async (req, res) => {
         // Log the project name being searched for
         console.log('Searching for project with name:', projectName);
 
-        // Find the project by name
-        const project = await Project.findOne({ name: projectName });
-        
+        // Find the project by name with a timeout
+        const project = await Project.findOne({ name: projectName }).timeout(20000); // 20 seconds
+
         // Log the project found or not
-        if (project) {
-            console.log('Project found:', project);
-        } else {
+        if (!project) {
             console.log('Project not found');
             return res.status(404).json({ message: 'Project not found' });
         }
@@ -402,39 +400,44 @@ exports.createSpeech = async (req, res) => {
 
         const tempFileName = `temp-${Date.now()}.mp3`;
         const tempFileStream = fs.createWriteStream(tempFileName);
-        audioStream.pipe(tempFileStream).on('finish', async () => {
-            const audioBytes = fs.readFileSync(tempFileName).toString('base64');
 
-            const request = {
-                audio: { content: audioBytes },
-                config: { encoding: 'MP3', sampleRateHertz: 16000, languageCode: 'en-US' },
-            };
-
-            const [response] = await client.recognize(request);
-            const transcription = response.results.map(result => result.alternatives[0].transcript).join('\n');
-
-            fs.unlink(tempFileName, err => {
-                if (err) console.error('Error deleting temp file:', err);
-            });
-
-            const newSpeech = new Speech({
-                projectId: project._id, // Use the project ID from the found project
-                name,
-                audioUrl: tempFileName, // You might want to store the actual path or a link to the audio file
-                transcription,
-            });
-
-            await newSpeech.save();
-            res.status(201).json(newSpeech);
-        }).on('error', (err) => {
-            console.error('Error during audio stream piping:', err);
-            res.status(500).json({ error: err.message });
+        // Handle timeout for audio stream piping
+        const pipePromise = new Promise((resolve, reject) => {
+            audioStream.pipe(tempFileStream).on('finish', () => resolve()).on('error', reject);
         });
+
+        // Wait for the audio stream to finish or timeout
+        await Promise.race([pipePromise, new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out')), 20000))]);
+
+        const audioBytes = fs.readFileSync(tempFileName).toString('base64');
+
+        const request = {
+            audio: { content: audioBytes },
+            config: { encoding: 'MP3', sampleRateHertz: 16000, languageCode: 'en-US' },
+        };
+
+        const [response] = await client.recognize(request);
+        const transcription = response.results.map(result => result.alternatives[0].transcript).join('\n');
+
+        fs.unlink(tempFileName, err => {
+            if (err) console.error('Error deleting temp file:', err);
+        });
+
+        const newSpeech = new Speech({
+            projectId: project._id, // Use the project ID from the found project
+            name,
+            audioUrl: tempFileName, // You might want to store the actual path or a link to the audio file
+            transcription,
+        });
+
+        await newSpeech.save();
+        res.status(201).json(newSpeech);
     } catch (error) {
         console.error('Error in createSpeech:', error);
         res.status(500).json({ error: error.message });
     }
 };
+
 
 exports.uploadFile = async (req, res) => {
     const { projectName, name } = req.body;
@@ -444,13 +447,11 @@ exports.uploadFile = async (req, res) => {
         // Log the project name being searched for
         console.log('Searching for project with name:', projectName);
 
-        // Find the project by name
-        const project = await Project.findOne({ name: projectName });
-        
+        // Find the project by name with a timeout
+        const project = await Project.findOne({ name: projectName }).timeout(20000); // 20 seconds
+
         // Log the project found or not
-        if (project) {
-            console.log('Project found:', project);
-        } else {
+        if (!project) {
             console.log('Project not found');
             return res.status(404).json({ message: 'Project not found' });
         }
@@ -464,7 +465,7 @@ exports.uploadFile = async (req, res) => {
         if (fileType === 'audio/mpeg') {
             const tempFileName = `temp-${Date.now()}.mp3`;
             fs.writeFileSync(tempFileName, req.file.buffer);
-            
+
             const audioBytes = fs.readFileSync(tempFileName).toString('base64');
 
             const request = {
@@ -507,6 +508,7 @@ exports.uploadFile = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
+
 
 exports.getSpeeches = async (req, res) => {
     const { projectId } = req.query; // Assuming projectId is passed in the query parameters
