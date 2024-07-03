@@ -372,142 +372,6 @@ const bufferToStream = (buffer) => {
     return Readable.from(buffer);
 };
 
-// exports.createSpeech = async (req, res) => {
-//     const { projectName, youtubeUrl, name } = req.body;
-//     console.log('Request Body:', req.body);
-
-//     try {
-//         // Log the project name being searched for
-//         console.log('Searching for project with name:', projectName);
-
-//         // Find the project by name
-//         const project = await Project.findOne({ name: projectName });
-        
-//         // Log the project found or not
-//         if (project) {
-//             console.log('Project found:', project);
-//         } else {
-//             console.log('Project not found');
-//             return res.status(404).json({ message: 'Project not found' });
-//         }
-
-//         let audioStream;
-//         if (req.file) {
-//             audioStream = bufferToStream(req.file.buffer);
-//         } else if (youtubeUrl) {
-//             audioStream = ytdl(youtubeUrl, { filter: 'audioonly' });
-//         } else {
-//             return res.status(400).json({ message: 'Audio file or YouTube URL is required.' });
-//         }
-
-//         const tempFileName = `temp-${Date.now()}.mp3`;
-//         const tempFileStream = fs.createWriteStream(tempFileName);
-//         audioStream.pipe(tempFileStream).on('finish', async () => {
-//             const audioBytes = fs.readFileSync(tempFileName).toString('base64');
-
-//             const request = {
-//                 audio: { content: audioBytes },
-//                 config: { encoding: 'MP3', sampleRateHertz: 16000, languageCode: 'en-US' },
-//             };
-
-//             const [response] = await client.recognize(request);
-//             const transcription = response.results.map(result => result.alternatives[0].transcript).join('\n');
-
-//             fs.unlink(tempFileName, err => {
-//                 if (err) console.error('Error deleting temp file:', err);
-//             });
-
-//             const newSpeech = new Speech({
-//                 projectId: project._id, // Use the project ID from the found project
-//                 name,
-//                 audioUrl: tempFileName, // You might want to store the actual path or a link to the audio file
-//                 transcription,
-//             });
-
-//             await newSpeech.save();
-//             res.status(201).json(newSpeech);
-//         }).on('error', (err) => {
-//             console.error('Error during audio stream piping:', err);
-//             res.status(500).json({ error: err.message });
-//         });
-//     } catch (error) {
-//         console.error('Error in createSpeech:', error);
-//         res.status(500).json({ error: error.message });
-//     }
-// };
-
-
-// exports.uploadFile = async (req, res) => {
-//     const { projectName, name } = req.body;
-//     console.log('Request Body:', req.body);
-
-//     try {
-//         // Log the project name being searched for
-//         console.log('Searching for project with name:', projectName);
-
-//         // Find the project by name
-//         const project = await Project.findOne({ name: projectName });
-        
-//         // Log the project found or not
-//         if (project) {
-//             console.log('Project found:', project);
-//         } else {
-//             console.log('Project not found');
-//             return res.status(404).json({ message: 'Project not found' });
-//         }
-
-//         if (!req.file) {
-//             return res.status(400).json({ message: 'File is required.' });
-//         }
-
-//         const fileType = req.file.mimetype;
-
-//         if (fileType === 'audio/mpeg') {
-//             const tempFileName = `temp-${Date.now()}.mp3`;
-//             fs.writeFileSync(tempFileName, req.file.buffer);
-            
-//             const audioBytes = fs.readFileSync(tempFileName).toString('base64');
-
-//             const request = {
-//                 audio: { content: audioBytes },
-//                 config: { encoding: 'MP3', sampleRateHertz: 16000, languageCode: 'en-US' },
-//             };
-
-//             const [response] = await client.recognize(request);
-//             const transcription = response.results.map(result => result.alternatives[0].transcript).join('\n');
-
-//             fs.unlink(tempFileName, err => {
-//                 if (err) console.error('Error deleting temp file:', err);
-//             });
-
-//             const newSpeech = new Speech({
-//                 projectId: project._id, // Use the project ID from the found project
-//                 name,
-//                 audioUrl: tempFileName, // You might want to store the actual path or a link to the audio file
-//                 transcription,
-//             });
-
-//             await newSpeech.save();
-//             res.status(201).json(newSpeech);
-//         } else if (fileType === 'text/plain') {
-//             const text = req.file.buffer.toString('utf-8');
-
-//             const newSpeech = new Speech({
-//                 projectId: project._id,
-//                 name,
-//                 transcription: text,
-//             });
-
-//             await newSpeech.save();
-//             res.status(201).json(newSpeech);
-//         } else {
-//             return res.status(400).json({ message: 'Unsupported file type. Only MP3 and text files are supported.' });
-//         }
-//     } catch (error) {
-//         console.error('Error in uploadFile:', error);
-//         res.status(500).json({ error: error.message });
-//     }
-// };
 exports.createSpeech = async (req, res) => {
     const { projectName, youtubeUrl, name } = req.body;
     console.log('Request Body:', req.body);
@@ -516,16 +380,13 @@ exports.createSpeech = async (req, res) => {
         // Log the project name being searched for
         console.log('Searching for project with name:', projectName);
 
-        // Find the project by name with a timeout
-        const project = await Promise.race([
-            Project.findOne({ name: projectName }).exec(), // .exec() is necessary for Mongoose queries
-            new Promise((resolve, reject) => {
-                setTimeout(() => reject(new Error('Project query timeout')), 20000); // 20 seconds timeout
-            })
-        ]);
-
+        // Find the project by name
+        const project = await Project.findOne({ name: projectName });
+        
         // Log the project found or not
-        if (!project) {
+        if (project) {
+            console.log('Project found:', project);
+        } else {
             console.log('Project not found');
             return res.status(404).json({ message: 'Project not found' });
         }
@@ -541,53 +402,40 @@ exports.createSpeech = async (req, res) => {
 
         const tempFileName = `temp-${Date.now()}.mp3`;
         const tempFileStream = fs.createWriteStream(tempFileName);
+        audioStream.pipe(tempFileStream).on('finish', async () => {
+            const audioBytes = fs.readFileSync(tempFileName).toString('base64');
 
-        // Handle timeout for audio stream piping
-        const pipePromise = new Promise((resolve, reject) => {
-            audioStream.pipe(tempFileStream).on('finish', () => resolve()).on('error', reject);
+            const request = {
+                audio: { content: audioBytes },
+                config: { encoding: 'MP3', sampleRateHertz: 16000, languageCode: 'en-US' },
+            };
+
+            const [response] = await client.recognize(request);
+            const transcription = response.results.map(result => result.alternatives[0].transcript).join('\n');
+
+            fs.unlink(tempFileName, err => {
+                if (err) console.error('Error deleting temp file:', err);
+            });
+
+            const newSpeech = new Speech({
+                projectId: project._id, // Use the project ID from the found project
+                name,
+                audioUrl: tempFileName, // You might want to store the actual path or a link to the audio file
+                transcription,
+            });
+
+            await newSpeech.save();
+            res.status(201).json(newSpeech);
+        }).on('error', (err) => {
+            console.error('Error during audio stream piping:', err);
+            res.status(500).json({ error: err.message });
         });
-
-        // Wait for the audio stream to finish or timeout
-        await Promise.race([
-            pipePromise,
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Audio stream piping timed out')), 20000))
-        ]);
-
-        const audioBytes = fs.readFileSync(tempFileName).toString('base64');
-
-        const request = {
-            audio: { content: audioBytes },
-            config: { encoding: 'MP3', sampleRateHertz: 16000, languageCode: 'en-US' },
-        };
-
-        // Add timeout for Google Cloud Speech API call
-        const recognizePromise = client.recognize(request);
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Speech recognition timed out')), 20000));
-
-        const [response] = await Promise.race([recognizePromise, timeoutPromise]);
-        if (!response) {
-            throw new Error('Speech recognition failed or timed out');
-        }
-        const transcription = response.results.map(result => result.alternatives[0].transcript).join('\n');
-
-        fs.unlink(tempFileName, err => {
-            if (err) console.error('Error deleting temp file:', err);
-        });
-
-        const newSpeech = new Speech({
-            projectId: project._id, // Use the project ID from the found project
-            name,
-            audioUrl: tempFileName, // You might want to store the actual path or a link to the audio file
-            transcription,
-        });
-
-        await newSpeech.save();
-        res.status(201).json(newSpeech);
     } catch (error) {
         console.error('Error in createSpeech:', error);
         res.status(500).json({ error: error.message });
     }
 };
+
 
 exports.uploadFile = async (req, res) => {
     const { projectName, name } = req.body;
@@ -597,16 +445,13 @@ exports.uploadFile = async (req, res) => {
         // Log the project name being searched for
         console.log('Searching for project with name:', projectName);
 
-        // Find the project by name with a timeout
-        const project = await Promise.race([
-            Project.findOne({ name: projectName }).exec(), // .exec() is necessary for Mongoose queries
-            new Promise((resolve, reject) => {
-                setTimeout(() => reject(new Error('Project query timeout')), 20000); // 20 seconds timeout
-            })
-        ]);
-
+        // Find the project by name
+        const project = await Project.findOne({ name: projectName });
+        
         // Log the project found or not
-        if (!project) {
+        if (project) {
+            console.log('Project found:', project);
+        } else {
             console.log('Project not found');
             return res.status(404).json({ message: 'Project not found' });
         }
@@ -620,7 +465,7 @@ exports.uploadFile = async (req, res) => {
         if (fileType === 'audio/mpeg') {
             const tempFileName = `temp-${Date.now()}.mp3`;
             fs.writeFileSync(tempFileName, req.file.buffer);
-
+            
             const audioBytes = fs.readFileSync(tempFileName).toString('base64');
 
             const request = {
@@ -628,14 +473,7 @@ exports.uploadFile = async (req, res) => {
                 config: { encoding: 'MP3', sampleRateHertz: 16000, languageCode: 'en-US' },
             };
 
-            // Add timeout for Google Cloud Speech API call
-            const recognizePromise = client.recognize(request);
-            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Speech recognition timed out')), 20000));
-
-            const [response] = await Promise.race([recognizePromise, timeoutPromise]);
-            if (!response) {
-                throw new Error('Speech recognition failed or timed out');
-            }
+            const [response] = await client.recognize(request);
             const transcription = response.results.map(result => result.alternatives[0].transcript).join('\n');
 
             fs.unlink(tempFileName, err => {
@@ -670,6 +508,7 @@ exports.uploadFile = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
+
 
 exports.getSpeeches = async (req, res) => {
     const { projectId } = req.query; // Assuming projectId is passed in the query parameters
