@@ -565,6 +565,9 @@ exports.createSpeech = async (req, res) => {
         const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Speech recognition timed out')), 20000));
 
         const [response] = await Promise.race([recognizePromise, timeoutPromise]);
+        if (!response) {
+            throw new Error('Speech recognition failed or timed out');
+        }
         const transcription = response.results.map(result => result.alternatives[0].transcript).join('\n');
 
         fs.unlink(tempFileName, err => {
@@ -630,6 +633,9 @@ exports.uploadFile = async (req, res) => {
             const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Speech recognition timed out')), 20000));
 
             const [response] = await Promise.race([recognizePromise, timeoutPromise]);
+            if (!response) {
+                throw new Error('Speech recognition failed or timed out');
+            }
             const transcription = response.results.map(result => result.alternatives[0].transcript).join('\n');
 
             fs.unlink(tempFileName, err => {
@@ -664,8 +670,6 @@ exports.uploadFile = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
-
-
 
 exports.getSpeeches = async (req, res) => {
     const { projectId } = req.query; // Assuming projectId is passed in the query parameters
